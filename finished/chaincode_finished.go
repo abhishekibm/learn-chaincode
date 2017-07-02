@@ -99,7 +99,7 @@ func (t *SimpleChaincode) write(stub shim.ChaincodeStubInterface, args []string)
 func (t *SimpleChaincode) read(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
 	var key, jsonResp string
 	var err error
-
+	fmt.Println("Updated")
 	if len(args) != 1 {
 		return nil, errors.New("Incorrect number of arguments. Expecting name of the key to query")
 	}
