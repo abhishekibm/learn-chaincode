@@ -17,8 +17,10 @@ limitations under the License.
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 )
@@ -39,12 +41,23 @@ func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface, function string
 	if len(args) != 1 {
 		return nil, errors.New("Incorrect number of arguments. Expecting 1")
 	}
-
-	err := stub.PutState("hello_world", []byte(args[0]))
+	//args[0] = "{\"zabi\":6.13,\"abhi\":23}"
+	err := stub.PutState("moneyWorld", []byte(args[0]))
 	if err != nil {
 		return nil, err
 	}
+	var dat map[string]int
+	if err := json.Unmarshal([]byte(args[0]), &dat); err != nil {
+		panic(err)
+	}
 
+	for k, v := range dat {
+		err := stub.PutState(k, []byte(strconv.Itoa(v)))
+		if err != nil {
+			return nil, err
+		}
+
+	}
 	return nil, nil
 }
 
@@ -55,8 +68,8 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface, function stri
 	// Handle different functions
 	if function == "init" {
 		return t.Init(stub, "init", args)
-	} else if function == "write" {
-		return t.write(stub, args)
+	} else if function == "transferMoney" {
+		return t.transferMoney(stub, args)
 	}
 	fmt.Println("invoke did not find func: " + function)
 
@@ -77,20 +90,44 @@ func (t *SimpleChaincode) Query(stub shim.ChaincodeStubInterface, function strin
 }
 
 // write - invoke function to write key/value pair
-func (t *SimpleChaincode) write(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
-	var key, value string
+func (t *SimpleChaincode) transferMoney(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
+	var sender, recipient, jsonResp string
+	var amount int
 	var err error
-	fmt.Println("running write()")
+	fmt.Println("running transferMoney()")
 
-	if len(args) != 2 {
-		return nil, errors.New("Incorrect number of arguments. Expecting 2. name of the key and value to set")
+	if len(args) != 3 {
+		return nil, errors.New("Incorrect number of arguments. Expecting 3. Sender, recipient, amount")
 	}
 
-	key = args[0] //rename for funsies
-	value = args[1]
-	err = stub.PutState(key, []byte(value)) //write the variable into the chaincode state
+	sender = args[0]    //sender
+	recipient = args[1] // recipient
+	amount, _ = strconv.Atoi(args[2])
+
+	//first get current state
+	currState, err := stub.GetState("moneyWorld")
 	if err != nil {
-		return nil, err
+		jsonResp = "{\"Error\":\"Failed to get state for " + "moneyWorld" + "\"}"
+		return nil, errors.New(jsonResp)
+	}
+
+	var dat map[string]int
+	if err := json.Unmarshal([]byte(currState), &dat); err != nil {
+		panic(err)
+	}
+	dat[sender] = dat[sender] - amount
+	dat[recipient] = dat[recipient] + amount
+	strB, _ := json.Marshal(dat)
+	err1 := stub.PutState("moneyWorld", []byte(strB))
+	if err1 != nil {
+		return nil, err1
+	}
+
+	for k, v := range dat {
+		err := stub.PutState(k, []byte(strconv.Itoa(v)))
+		if err != nil {
+			return nil, err
+		}
 	}
 	return nil, nil
 }
